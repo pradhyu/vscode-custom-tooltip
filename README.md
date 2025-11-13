@@ -13,10 +13,12 @@ Execute shell commands with selected text and view the output in hover tooltips.
 
 ## Usage
 
-1. Select text in the editor
+1. Select text in the editor (or place cursor on a word)
 2. Press `Ctrl+Shift+E` (or `Cmd+Shift+E` on Mac) or use the command palette to run "Execute Command with Selection"
-3. Wait for the command to execute
-4. Hover over the selected text to see the output in a tooltip
+3. The command output will appear in a popup panel immediately
+4. You can also hover over the text later to see the output in a tooltip
+
+**Note:** If no text is selected, the extension will automatically use the word under the cursor.
 
 ## Configuration
 
@@ -57,10 +59,26 @@ Command execution timeout in milliseconds.
 }
 ```
 
+### Convert to Uppercase
+```json
+{
+  "commandOutputHover.commandTemplate": "echo {{input}} | tr '[:lower:]' '[:upper:]'",
+  "commandOutputHover.shellType": "bash"
+}
+```
+
 ### Base64 Encode
 ```json
 {
   "commandOutputHover.commandTemplate": "echo -n {{input}} | base64",
+  "commandOutputHover.shellType": "bash"
+}
+```
+
+### Dictionary Lookup (requires curl and jq)
+```json
+{
+  "commandOutputHover.commandTemplate": "curl -s 'https://api.dictionaryapi.dev/api/v2/entries/en/{{input}}' | jq -r '.[0].meanings[0].definitions[0].definition'",
   "commandOutputHover.shellType": "bash"
 }
 ```

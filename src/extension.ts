@@ -24,12 +24,21 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
         
-        const selection = editor.selection;
-        const selectedText = editor.document.getText(selection);
+        let selection = editor.selection;
+        let selectedText = editor.document.getText(selection);
         
+        // If no text is selected, get the word under the cursor
         if (!selectedText || selectedText.trim().length === 0) {
-            vscode.window.showErrorMessage('Please select text before executing command');
-            return;
+            const position = editor.selection.active;
+            const wordRange = editor.document.getWordRangeAtPosition(position);
+            
+            if (wordRange) {
+                selectedText = editor.document.getText(wordRange);
+                selection = new vscode.Selection(wordRange.start, wordRange.end);
+            } else {
+                vscode.window.showErrorMessage('No text selected and no word found under cursor');
+                return;
+            }
         }
         
         // Get configuration
@@ -80,7 +89,7 @@ async function executeCommandWithProgress(
         location: vscode.ProgressLocation.Notification,
         title: "Executing command...",
         cancellable: false
-    }, async (progress) => {
+    }, async () => {
         try {
             // Execute command
             const result = await commandExecutor.execute(
@@ -109,16 +118,89 @@ function handleExecutionResult(
     if (result.success) {
         // Store successful output
         hoverManager.storeOutput(editor.document, range, result.output);
-        vscode.window.showInformationMessage('Command executed successfully. Hover over the selection to see output.');
+        
+        // Show output in a popup immediately
+        showOutputPopup(result.output, false);
     } else {
         // Store error output for debugging
         const errorOutput = result.error || 'Unknown error';
         hoverManager.storeOutput(editor.document, range, `Error: ${errorOutput}`);
         
-        // Show error notification
-        const firstLine = errorOutput.split('\n')[0];
-        vscode.window.showErrorMessage(`Command failed: ${firstLine}`);
+        // Show error in popup
+        showOutputPopup(errorOutput, true);
     }
+}
+
+function showOutputPopup(output: string, isError: boolean): void {
+    // Limit output length for the popup
+    const maxLength = 500;
+    let displayOutput = output;
+    let truncated = false;
+    
+    if (output.length > maxLength) {
+        displayOutput = output.substring(0, maxLength);
+        truncated = true;
+    }
+    
+    // Create a webview panel to show the output
+    const panel = vscode.window.createWebviewPanel(
+        'commandOutput',
+        isError ? 'Command Error' : 'Command Output',
+        vscode.ViewColumn.Beside,
+        {
+            enableScripts: false
+        }
+    );
+    
+    // Set the HTML content
+    panel.webview.html = getWebviewContent(displayOutput, truncated, isError);
+}
+
+function getWebviewContent(output: string, truncated: boolean, isError: boolean): string {
+    const escapedOutput = output
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    
+    const backgroundColor = isError ? '#3d1f1f' : '#1e1e1e';
+    const textColor = isError ? '#f48771' : '#d4d4d4';
+    const title = isError ? 'Error' : 'Output';
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        body {
+            background-color: ${backgroundColor};
+            color: ${textColor};
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            margin: 0;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .truncated {
+            margin-top: 20px;
+            font-style: italic;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <pre>${escapedOutput}</pre>
+    ${truncated ? '<div class="truncated">... (output truncated, hover over text to see full output)</div>' : ''}
+</body>
+</html>`;
 }
 
 export function deactivate() {
