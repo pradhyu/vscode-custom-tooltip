@@ -30,16 +30,23 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
 
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document);
 
+        let isUpdatingDocument = false;
+
         function updateWebview() {
-            webviewPanel.webview.postMessage({
-                type: 'update',
-                text: document.getText(),
-            });
+            if (!isUpdatingDocument) {
+                webviewPanel.webview.postMessage({
+                    type: 'update',
+                    text: document.getText(),
+                });
+            }
         }
 
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
-                updateWebview();
+                // Only update webview if the change didn't come from the webview itself
+                if (!isUpdatingDocument) {
+                    updateWebview();
+                }
             }
         });
 
@@ -53,7 +60,11 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                     await this.postJson(e.url, e.json, webviewPanel);
                     return;
                 case 'updateText':
-                    this.updateTextDocument(document, e.text);
+                    isUpdatingDocument = true;
+                    await this.updateTextDocument(document, e.text);
+                    setTimeout(() => {
+                        isUpdatingDocument = false;
+                    }, 100);
                     return;
             }
         });
@@ -418,6 +429,7 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
         let currentResponseHtml = '';
         let currentView = 'json'; // 'json' or 'table'
         let editor = null;
+        let isUpdatingFromExtension = false;
 
         // Initialize Monaco Editor
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
@@ -438,13 +450,22 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                 insertSpaces: true
             });
 
-            // Handle editor changes
+            // Handle editor changes - but prevent update loop
+            let changeTimeout;
             editor.onDidChangeModelContent(() => {
-                const text = editor.getValue();
-                vscode.postMessage({
-                    type: 'updateText',
-                    text: text
-                });
+                if (isUpdatingFromExtension) {
+                    return; // Don't send updates back when we're updating from extension
+                }
+                
+                // Debounce updates to VS Code
+                clearTimeout(changeTimeout);
+                changeTimeout = setTimeout(() => {
+                    const text = editor.getValue();
+                    vscode.postMessage({
+                        type: 'updateText',
+                        text: text
+                    });
+                }, 300);
             });
         });
 
@@ -554,7 +575,11 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
             switch (message.type) {
                 case 'update':
                     if (editor) {
+                        isUpdatingFromExtension = true;
                         editor.setValue(message.text);
+                        setTimeout(() => {
+                            isUpdatingFromExtension = false;
+                        }, 100);
                     }
                     break;
                 case 'response':
