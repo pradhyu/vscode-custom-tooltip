@@ -483,26 +483,48 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                 document.body.appendChild(statusNode);
 
                 // Vim state
-                let vimMode = 'normal'; // normal, insert, visual
+                let vimMode = 'normal'; // normal, insert, visual, visualLine
                 let vimCommand = '';
                 let vimCount = '';
                 let yankBuffer = '';
+                let visualStart = null;
                 
                 function updateStatus() {
                     const modeText = vimMode === 'normal' ? '-- NORMAL --' : 
                                    vimMode === 'insert' ? '-- INSERT --' : 
+                                   vimMode === 'visualLine' ? '-- VISUAL LINE --' :
                                    '-- VISUAL --';
                     const cmdText = vimCommand ? ' ' + vimCommand : '';
                     const countText = vimCount ? ' ' + vimCount : '';
                     statusNode.textContent = modeText + countText + cmdText;
-                    statusNode.style.color = vimMode === 'insert' ? '#ce9178' : '#4ec9b0';
+                    statusNode.style.color = vimMode === 'insert' ? '#ce9178' : 
+                                           (vimMode === 'visual' || vimMode === 'visualLine') ? '#569cd6' : '#4ec9b0';
                 }
                 
                 function setMode(mode) {
                     vimMode = mode;
                     vimCommand = '';
                     vimCount = '';
-                    editor.updateOptions({ readOnly: mode === 'normal' || mode === 'visual' });
+                    
+                    if (mode === 'visual' || mode === 'visualLine') {
+                        visualStart = editor.getPosition();
+                        if (mode === 'visualLine') {
+                            // Select entire line
+                            const lineNumber = visualStart.lineNumber;
+                            const model = editor.getModel();
+                            const lineLength = model.getLineMaxColumn(lineNumber);
+                            editor.setSelection(new monaco.Range(lineNumber, 1, lineNumber, lineLength));
+                        }
+                    } else {
+                        visualStart = null;
+                        if (mode === 'normal') {
+                            // Clear selection
+                            const pos = editor.getPosition();
+                            editor.setSelection(new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column));
+                        }
+                    }
+                    
+                    editor.updateOptions({ readOnly: mode === 'normal' || mode === 'visual' || mode === 'visualLine' });
                     updateStatus();
                 }
                 
@@ -590,7 +612,12 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                 break;
                             case 'g':
                                 if (vimCommand === 'g') {
-                                    editor.trigger('vim', 'cursorTop', null);
+                                    // gg - go to top
+                                    if (vimCount) {
+                                        editor.setPosition({ lineNumber: count, column: 1 });
+                                    } else {
+                                        editor.setPosition({ lineNumber: 1, column: 1 });
+                                    }
                                     vimCommand = '';
                                     vimCount = '';
                                     updateStatus();
@@ -600,11 +627,14 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                 }
                                 break;
                             case 'G':
+                                // G - go to bottom (or specific line if count given)
                                 if (vimCount) {
                                     editor.setPosition({ lineNumber: count, column: 1 });
                                     vimCount = '';
                                 } else {
-                                    editor.trigger('vim', 'cursorBottom', null);
+                                    const model = editor.getModel();
+                                    const lastLine = model.getLineCount();
+                                    editor.setPosition({ lineNumber: lastLine, column: 1 });
                                 }
                                 updateStatus();
                                 break;
@@ -701,14 +731,38 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                             case 'v':
                                 setMode('visual');
                                 break;
+                            case 'V':
+                                setMode('visualLine');
+                                break;
+                            case '%':
+                                // Jump to matching bracket
+                                editor.trigger('vim', 'editor.action.jumpToBracket', null);
+                                break;
                             case '/':
+                                // Forward search
                                 editor.trigger('vim', 'actions.find', null);
+                                break;
+                            case '?':
+                                // Backward search - open find and set to search backwards
+                                editor.trigger('vim', 'actions.find', null);
+                                // Note: Monaco's find widget doesn't have direct API to set direction
+                                // User will need to click the up arrow or use Shift+Enter
+                                statusNode.textContent = 'Search (use Shift+Enter for previous)';
+                                setTimeout(() => updateStatus(), 2000);
                                 break;
                             case 'n':
                                 editor.trigger('vim', 'editor.action.nextMatchFindAction', null);
                                 break;
                             case 'N':
                                 editor.trigger('vim', 'editor.action.previousMatchFindAction', null);
+                                break;
+                            case '*':
+                                // Search for word under cursor (forward)
+                                editor.trigger('vim', 'editor.action.addSelectionToNextFindMatch', null);
+                                break;
+                            case '#':
+                                // Search for word under cursor (backward)
+                                editor.trigger('vim', 'editor.action.addSelectionToPreviousFindMatch', null);
                                 break;
                             case ':':
                                 // Simple command mode
