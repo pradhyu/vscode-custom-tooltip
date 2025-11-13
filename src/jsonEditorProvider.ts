@@ -113,6 +113,7 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
     private getHtmlForWebview(webview: vscode.Webview, document: vscode.TextDocument): string {
         const config = vscode.workspace.getConfiguration('commandOutputHover');
         const defaultUrl = config.get<string>('jsonPostUrl', 'https://httpbin.org/post');
+        const enableVimMode = config.get<boolean>('enableVimMode', false);
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -368,6 +369,21 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
         .json-view {
             display: block;
         }
+        #vim-status {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: #252526;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #d4d4d4;
+            z-index: 1000;
+            border: 1px solid #3e3e3e;
+            font-family: 'Consolas', 'Courier New', monospace;
+            min-width: 100px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -432,6 +448,7 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
         let isUpdatingFromExtension = false;
 
         // Initialize Monaco Editor
+        const enableVim = ${enableVimMode};
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
         require(['vs/editor/editor.main'], function () {
             editor = monaco.editor.create(document.getElementById('jsonEditor'), {
@@ -447,8 +464,286 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                 formatOnPaste: false,
                 formatOnType: false,
                 tabSize: 2,
-                insertSpaces: true
+                insertSpaces: true,
+                folding: true,
+                foldingStrategy: 'indentation',
+                showFoldingControls: 'always'
             });
+
+            // Add Ctrl+Enter keybinding to POST
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function() {
+                postBtn.click();
+            });
+
+            // Enable proper Vim mode with modal editing if configured
+            if (enableVim) {
+                const statusNode = document.createElement('div');
+                statusNode.id = 'vim-status';
+                statusNode.style.cssText = 'position: fixed; bottom: 10px; left: 10px; background: #252526; padding: 5px 10px; border-radius: 3px; font-size: 12px; color: #4ec9b0; z-index: 1000; border: 1px solid #3e3e3e; font-family: monospace;';
+                document.body.appendChild(statusNode);
+
+                // Vim state
+                let vimMode = 'normal'; // normal, insert, visual
+                let vimCommand = '';
+                let vimCount = '';
+                let yankBuffer = '';
+                
+                function updateStatus() {
+                    const modeText = vimMode === 'normal' ? '-- NORMAL --' : 
+                                   vimMode === 'insert' ? '-- INSERT --' : 
+                                   '-- VISUAL --';
+                    const cmdText = vimCommand ? ' ' + vimCommand : '';
+                    const countText = vimCount ? ' ' + vimCount : '';
+                    statusNode.textContent = modeText + countText + cmdText;
+                    statusNode.style.color = vimMode === 'insert' ? '#ce9178' : '#4ec9b0';
+                }
+                
+                function setMode(mode) {
+                    vimMode = mode;
+                    vimCommand = '';
+                    vimCount = '';
+                    editor.updateOptions({ readOnly: mode === 'normal' || mode === 'visual' });
+                    updateStatus();
+                }
+                
+                setMode('normal');
+                
+                // Handle all keyboard input
+                editor.onKeyDown((e) => {
+                    if (vimMode === 'insert') {
+                        // In insert mode, only handle Escape
+                        if (e.keyCode === monaco.KeyCode.Escape) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMode('normal');
+                        }
+                        return;
+                    }
+                    
+                    // Normal mode handling
+                    const key = e.browserEvent.key;
+                    const isShift = e.shiftKey;
+                    const isCtrl = e.ctrlKey || e.metaKey;
+                    
+                    // Prevent default for most keys in normal mode
+                    if (vimMode === 'normal' && key.length === 1 && !isCtrl) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    
+                    // Handle numbers for count
+                    if (vimMode === 'normal' && /^[0-9]$/.test(key) && (vimCount || key !== '0')) {
+                        vimCount += key;
+                        updateStatus();
+                        return;
+                    }
+                    
+                    const count = parseInt(vimCount) || 1;
+                    
+                    // Navigation commands
+                    if (vimMode === 'normal') {
+                        switch(key) {
+                            case 'h':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorLeft', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'j':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorDown', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'k':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorUp', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'l':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorRight', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'w':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorWordStartRight', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'b':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorWordStartLeft', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'e':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'cursorWordEndRight', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case '0':
+                                if (!vimCount) {
+                                    editor.trigger('vim', 'cursorHome', null);
+                                }
+                                break;
+                            case '$':
+                                editor.trigger('vim', 'cursorEnd', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'g':
+                                if (vimCommand === 'g') {
+                                    editor.trigger('vim', 'cursorTop', null);
+                                    vimCommand = '';
+                                    vimCount = '';
+                                    updateStatus();
+                                } else {
+                                    vimCommand = 'g';
+                                    updateStatus();
+                                }
+                                break;
+                            case 'G':
+                                if (vimCount) {
+                                    editor.setPosition({ lineNumber: count, column: 1 });
+                                    vimCount = '';
+                                } else {
+                                    editor.trigger('vim', 'cursorBottom', null);
+                                }
+                                updateStatus();
+                                break;
+                            case 'i':
+                                setMode('insert');
+                                break;
+                            case 'I':
+                                editor.trigger('vim', 'cursorHome', null);
+                                setMode('insert');
+                                break;
+                            case 'a':
+                                editor.trigger('vim', 'cursorRight', null);
+                                setMode('insert');
+                                break;
+                            case 'A':
+                                editor.trigger('vim', 'cursorEnd', null);
+                                setMode('insert');
+                                break;
+                            case 'o':
+                                editor.trigger('vim', 'cursorEnd', null);
+                                editor.trigger('vim', 'type', { text: '\\n' });
+                                setMode('insert');
+                                break;
+                            case 'O':
+                                editor.trigger('vim', 'cursorHome', null);
+                                editor.trigger('vim', 'type', { text: '\\n' });
+                                editor.trigger('vim', 'cursorUp', null);
+                                setMode('insert');
+                                break;
+                            case 'x':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'deleteRight', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'X':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'deleteLeft', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'd':
+                                if (vimCommand === 'd') {
+                                    // dd - delete line
+                                    const pos = editor.getPosition();
+                                    const model = editor.getModel();
+                                    for(let i = 0; i < count; i++) {
+                                        const line = model.getLineContent(pos.lineNumber);
+                                        yankBuffer = line;
+                                        editor.executeEdits('vim', [{
+                                            range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber + 1, 1),
+                                            text: ''
+                                        }]);
+                                    }
+                                    vimCommand = '';
+                                    vimCount = '';
+                                    updateStatus();
+                                } else {
+                                    vimCommand = 'd';
+                                    updateStatus();
+                                }
+                                break;
+                            case 'y':
+                                if (vimCommand === 'y') {
+                                    // yy - yank line
+                                    const pos = editor.getPosition();
+                                    const model = editor.getModel();
+                                    yankBuffer = model.getLineContent(pos.lineNumber);
+                                    vimCommand = '';
+                                    vimCount = '';
+                                    updateStatus();
+                                } else {
+                                    vimCommand = 'y';
+                                    updateStatus();
+                                }
+                                break;
+                            case 'p':
+                                if (yankBuffer) {
+                                    editor.trigger('vim', 'type', { text: yankBuffer });
+                                }
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'u':
+                                for(let i = 0; i < count; i++) editor.trigger('vim', 'undo', null);
+                                vimCount = '';
+                                updateStatus();
+                                break;
+                            case 'r':
+                                if (isCtrl) {
+                                    for(let i = 0; i < count; i++) editor.trigger('vim', 'redo', null);
+                                    vimCount = '';
+                                    updateStatus();
+                                }
+                                break;
+                            case 'v':
+                                setMode('visual');
+                                break;
+                            case '/':
+                                editor.trigger('vim', 'actions.find', null);
+                                break;
+                            case 'n':
+                                editor.trigger('vim', 'editor.action.nextMatchFindAction', null);
+                                break;
+                            case 'N':
+                                editor.trigger('vim', 'editor.action.previousMatchFindAction', null);
+                                break;
+                            case ':':
+                                // Simple command mode
+                                const cmd = prompt('Command:');
+                                if (cmd === 'w' || cmd === 'write') {
+                                    vscode.postMessage({ type: 'updateText', text: editor.getValue() });
+                                    statusNode.textContent = 'Saved!';
+                                    setTimeout(() => updateStatus(), 1000);
+                                } else if (cmd === 'q' || cmd === 'quit') {
+                                    statusNode.textContent = 'Cannot quit from webview';
+                                    setTimeout(() => updateStatus(), 2000);
+                                }
+                                break;
+                        }
+                    }
+                    
+                    // Visual mode
+                    if (vimMode === 'visual') {
+                        if (e.keyCode === monaco.KeyCode.Escape) {
+                            e.preventDefault();
+                            setMode('normal');
+                        } else if (key === 'd' || key === 'x') {
+                            e.preventDefault();
+                            editor.trigger('vim', 'editor.action.clipboardCutAction', null);
+                            setMode('normal');
+                        } else if (key === 'y') {
+                            e.preventDefault();
+                            editor.trigger('vim', 'editor.action.clipboardCopyAction', null);
+                            setMode('normal');
+                        }
+                    }
+                });
+                
+                console.log('Proper Vim mode enabled with modal editing');
+            }
 
             // Handle editor changes - but prevent update loop
             let changeTimeout;

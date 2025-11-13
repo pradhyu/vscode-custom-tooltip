@@ -1,7 +1,7 @@
 {
-  "name": "command-output-hover",
-  "displayName": "Command Output Hover",
-  "description": "Execute shell commands with selected text and view output in hover tooltips",
+  "name": "smarty-pants-json-api-tester",
+  "displayName": "Smarty Pants JSON API Tester",
+  "description": "JSON API testing tool with Monaco editor, Vim mode, and command execution",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.80.0"
@@ -80,7 +80,7 @@
       ]
     },
     "configuration": {
-      "title": "Command Output Hover",
+      "title": "Smarty Pants JSON API Tester",
       "properties": {
         "commandOutputHover.commandTemplate": {
           "type": "string",
@@ -121,6 +121,11 @@
             "Content-Type": "application/json"
           },
           "description": "Custom headers to include in the JSON POST request."
+        },
+        "commandOutputHover.enableVimMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Vim keybindings in the JSON editor."
         }
       }
     }

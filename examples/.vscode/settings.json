@@ -1,10 +1,9 @@
 {
-  "commandOutputHover.commandTemplate": "echo {{input}}",
-  "commandOutputHover.shellType": "bash",
-  "commandOutputHover.timeout": 30000,
+  "commandOutputHover.enableVimMode": true,
   //"commandOutputHover.commandTemplate": "echo {{input}}",
   "commandOutputHover.shellType": "bash",
   "commandOutputHover.timeout": 30000,
+  //"commandOutputHover.commandTemplate": "echo {{input}}",
   "commandOutputHover.commandTemplate": "curl -s 'https://api.dictionaryapi.dev/api/v2/entries/en/{{input}}' | jq -r '.[0].meanings[0].definitions[0].definition'",
   "commandOutputHover.jsonPostUrl": "https://httpbin.org/post",
   "commandOutputHover.jsonPostMethod": "POST",
