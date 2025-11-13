@@ -1,0 +1,70 @@
+{
+  "name": "command-output-hover",
+  "displayName": "Command Output Hover",
+  "description": "Execute shell commands with selected text and view output in hover tooltips",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:commandOutputHover.executeCommand"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "commandOutputHover.executeCommand",
+        "title": "Execute Command with Selection"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "commandOutputHover.executeCommand",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Command Output Hover",
+      "properties": {
+        "commandOutputHover.commandTemplate": {
+          "type": "string",
+          "default": "echo {{input}}",
+          "description": "Shell command template. Use {{input}} as placeholder for selected text."
+        },
+        "commandOutputHover.shellType": {
+          "type": "string",
+          "enum": [
+            "bash",
+            "powershell"
+          ],
+          "default": "bash",
+          "description": "Shell type to use for command execution."
+        },
+        "commandOutputHover.timeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "Command execution timeout in milliseconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
