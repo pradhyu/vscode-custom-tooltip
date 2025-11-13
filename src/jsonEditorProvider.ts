@@ -1083,6 +1083,48 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                 editor.trigger('vim', 'editor.action.outdentLines', null);
                                 setMode('normal');
                                 break;
+                            case 'o':
+                                // Toggle cursor to other end of selection
+                                const currentSel = editor.getSelection();
+                                const newSel = new monaco.Selection(
+                                    currentSel.endLineNumber, currentSel.endColumn,
+                                    currentSel.startLineNumber, currentSel.startColumn
+                                );
+                                editor.setSelection(newSel);
+                                break;
+                            case 'U':
+                                // Uppercase selection
+                                const upperSel = editor.getSelection();
+                                const upperText = editor.getModel().getValueInRange(upperSel).toUpperCase();
+                                editor.executeEdits('vim', [{
+                                    range: upperSel,
+                                    text: upperText
+                                }]);
+                                setMode('normal');
+                                break;
+                            case 'u':
+                                // Lowercase selection
+                                const lowerSel = editor.getSelection();
+                                const lowerText = editor.getModel().getValueInRange(lowerSel).toLowerCase();
+                                editor.executeEdits('vim', [{
+                                    range: lowerSel,
+                                    text: lowerText
+                                }]);
+                                setMode('normal');
+                                break;
+                            case '~':
+                                // Toggle case of selection
+                                const toggleSel = editor.getSelection();
+                                const toggleText = editor.getModel().getValueInRange(toggleSel);
+                                const toggled = toggleText.split('').map(c => 
+                                    c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()
+                                ).join('');
+                                editor.executeEdits('vim', [{
+                                    range: toggleSel,
+                                    text: toggled
+                                }]);
+                                setMode('normal');
+                                break;
                         }
                         
                         // Handle number input for count in visual mode
