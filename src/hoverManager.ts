@@ -4,6 +4,8 @@ interface StoredOutput {
     output: string;
     range: vscode.Range;
     timestamp: number;
+    command: string;
+    input: string;
 }
 
 interface DocumentHoverData {
@@ -21,7 +23,7 @@ export class HoverManager implements vscode.HoverProvider {
         this.startCleanupTimer();
     }
     
-    storeOutput(document: vscode.TextDocument, range: vscode.Range, output: string): void {
+    storeOutput(document: vscode.TextDocument, range: vscode.Range, output: string, command: string, input: string): void {
         const uri = document.uri.toString();
         
         if (!this.hoverData.has(uri)) {
@@ -40,7 +42,9 @@ export class HoverManager implements vscode.HoverProvider {
         docData.outputs.push({
             output,
             range,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            command,
+            input
         });
     }
 
@@ -55,11 +59,61 @@ export class HoverManager implements vscode.HoverProvider {
         // Find output for the position
         for (const stored of docData.outputs) {
             if (stored.range.contains(position)) {
-                // Format output as Markdown code block
+                // Create rich markdown content
                 const markdown = new vscode.MarkdownString();
-                markdown.appendCodeblock(stored.output, 'text');
+                markdown.isTrusted = true;
+                markdown.supportHtml = true;
+                
+                // Add a header
+                const isError = stored.output.startsWith('Error:');
+                const icon = isError ? '❌' : '✅';
+                markdown.appendMarkdown(`${icon} **Command Output**\n\n`);
+                
+                // Show preview (first 200 chars)
+                const previewLength = 200;
+                let preview = stored.output;
+                let showFullLink = false;
+                
+                if (stored.output.length > previewLength) {
+                    preview = stored.output.substring(0, previewLength) + '...';
+                    showFullLink = true;
+                }
+                
+                // Add the output as code block
+                markdown.appendCodeblock(preview, 'text');
+                
+                // Add command link to show full output in popup
+                if (showFullLink) {
+                    markdown.appendMarkdown('\n\n---\n\n');
+                    markdown.appendMarkdown('_Output truncated. ');
+                }
+                
+                const commandUri = vscode.Uri.parse(
+                    `command:commandOutputHover.showFullOutput?${encodeURIComponent(JSON.stringify({
+                        output: stored.output,
+                        isError
+                    }))}`
+                );
+                markdown.appendMarkdown(`[Click here to view full output](${commandUri})_`);
                 
                 return new vscode.Hover(markdown, stored.range);
+            }
+        }
+        
+        return null;
+    }
+    
+    getOutputAtPosition(document: vscode.TextDocument, position: vscode.Position): string | null {
+        const uri = document.uri.toString();
+        const docData = this.hoverData.get(uri);
+        
+        if (!docData) {
+            return null;
+        }
+        
+        for (const stored of docData.outputs) {
+            if (stored.range.contains(position)) {
+                return stored.output;
             }
         }
         

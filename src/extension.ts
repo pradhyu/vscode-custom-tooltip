@@ -15,6 +15,12 @@ export function activate(context: vscode.ExtensionContext) {
     commandExecutor = new CommandExecutor();
     hoverManager = new HoverManager();
     
+    // Register command to show full output
+    const showFullOutputDisposable = vscode.commands.registerCommand('commandOutputHover.showFullOutput', (args) => {
+        const { output, isError } = JSON.parse(args);
+        showOutputPopup(output, isError);
+    });
+    
     // Register command
     const commandDisposable = vscode.commands.registerCommand('commandOutputHover.executeCommand', async () => {
         const editor = vscode.window.activeTextEditor;
@@ -72,6 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Add all disposables to subscriptions
     context.subscriptions.push(
         commandDisposable,
+        showFullOutputDisposable,
         hoverDisposable,
         configChangeDisposable,
         docCloseDisposable,

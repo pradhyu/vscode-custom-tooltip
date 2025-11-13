@@ -18,6 +18,10 @@
       {
         "command": "commandOutputHover.executeCommand",
         "title": "Execute Command with Selection"
+      },
+      {
+        "command": "commandOutputHover.showFullOutput",
+        "title": "Show Full Command Output"
       }
     ],
     "keybindings": [

@@ -16,9 +16,16 @@ Execute shell commands with selected text and view the output in hover tooltips.
 1. Select text in the editor (or place cursor on a word)
 2. Press `Ctrl+Shift+E` (or `Cmd+Shift+E` on Mac) or use the command palette to run "Execute Command with Selection"
 3. The command output will appear in a popup panel immediately
-4. You can also hover over the text later to see the output in a tooltip
+4. Hover over the text to see a rich tooltip with a preview of the output
+5. Click the link in the tooltip to view the full output in a popup panel
 
 **Note:** If no text is selected, the extension will automatically use the word under the cursor.
+
+### Viewing Output
+
+- **Immediate popup**: After command execution, output appears in a side panel
+- **Rich hover tooltip**: Hover over the text to see a preview with ✅/❌ icon
+- **Full output link**: Click the link in the tooltip to open the complete output in a popup
 
 ## Configuration
 
