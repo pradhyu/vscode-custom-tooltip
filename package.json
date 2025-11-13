@@ -26,8 +26,18 @@
       },
       {
         "command": "commandOutputHover.postJsonToUrl",
-        "title": "Post JSON to Remote URL",
+        "title": "Post JSON (Custom URL)",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "commandOutputHover.postJsonToUrlDefault",
+        "title": "Post JSON (Default URL)",
         "icon": "$(play)"
+      },
+      {
+        "command": "commandOutputHover.openJsonEditor",
+        "title": "Open JSON API Tester",
+        "icon": "$(globe)"
       }
     ],
     "keybindings": [
@@ -38,12 +48,34 @@
         "when": "editorTextFocus"
       }
     ],
+    "customEditors": [
+      {
+        "viewType": "commandOutputHover.jsonEditor",
+        "displayName": "JSON API Tester",
+        "selector": [
+          {
+            "filenamePattern": "*.json"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
     "menus": {
       "editor/title": [
         {
+          "command": "commandOutputHover.openJsonEditor",
+          "when": "resourceLangId == json && activeCustomEditorId != 'commandOutputHover.jsonEditor'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "commandOutputHover.postJsonToUrlDefault",
+          "when": "resourceLangId == json && activeCustomEditorId != 'commandOutputHover.jsonEditor'",
+          "group": "navigation@2"
+        },
+        {
           "command": "commandOutputHover.postJsonToUrl",
-          "when": "resourceLangId == json",
-          "group": "navigation"
+          "when": "resourceLangId == json && activeCustomEditorId != 'commandOutputHover.jsonEditor'",
+          "group": "navigation@3"
         }
       ]
     },

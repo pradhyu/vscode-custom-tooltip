@@ -141,18 +141,42 @@ Custom headers to include in the JSON POST request.
 
 ## JSON File Support
 
-When you open a JSON file, a play button (▶️) appears in the editor title bar.
+When you open a JSON file, you have two options:
 
-### Usage
+### Option 1: Custom JSON Editor (Recommended)
+Right-click the JSON file → "Reopen Editor With..." → "JSON API Tester"
 
-1. Configure the remote URL in settings: `commandOutputHover.jsonPostUrl`
-2. Open any JSON file
-3. Click the play button (▶️) in the editor title bar
-4. The JSON will be posted to the configured URL
-5. The response appears in a side panel with:
-   - HTTP status code with ✅/❌ indicator
-   - Pretty-formatted JSON
-   - Syntax highlighting (keys, strings, numbers, booleans)
+This opens a split-view editor with:
+- **Left pane**: JSON editor
+- **URL text box**: Type your endpoint URL
+- **POST button**: Click to send the request
+- **Right pane**: Response viewer with syntax highlighting
+
+### Option 2: Standard Editor with Buttons
+Open JSON file normally and use the toolbar buttons:
+- **▶️ Play Button**: Posts to the default URL from settings
+- **✏️ Edit Button**: Prompts you to enter a custom URL
+
+## Using the Custom JSON Editor
+
+1. Right-click any `.json` file
+2. Select "Reopen Editor With..." → "JSON API Tester"
+3. You'll see a split-view interface:
+   ```
+   ┌─────────────────────────────────────────────────────┐
+   │ [URL Text Box]                    [▶️ POST Button]  │
+   ├──────────────────────┬──────────────────────────────┤
+   │  JSON EDITOR         │  RESPONSE                    │
+   │  {                   │  ✅ HTTP 200                 │
+   │    "key": "value"    │  {                           │
+   │  }                   │    "result": "..."           │
+   │                      │  }                           │
+   └──────────────────────┴──────────────────────────────┘
+   ```
+4. Type your URL in the text box at the top
+5. Edit your JSON in the left pane
+6. Click POST or press Enter in the URL box
+7. See the response in the right pane with syntax highlighting
 
 ### Example Configuration for Testing
 

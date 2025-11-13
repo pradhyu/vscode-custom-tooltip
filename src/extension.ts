@@ -3,6 +3,7 @@ import { ConfigManager } from './configManager';
 import { CommandExecutor } from './commandExecutor';
 import { HoverManager } from './hoverManager';
 import { JsonPoster } from './jsonPoster';
+import { JsonEditorProvider } from './jsonEditorProvider';
 
 let configManager: ConfigManager;
 let commandExecutor: CommandExecutor;
@@ -18,13 +19,27 @@ export function activate(context: vscode.ExtensionContext) {
     hoverManager = new HoverManager();
     jsonPoster = new JsonPoster();
     
+    // Register custom JSON editor
+    context.subscriptions.push(JsonEditorProvider.register(context));
+    
+    // Register command to open JSON editor
+    const openJsonEditorDisposable = vscode.commands.registerCommand('commandOutputHover.openJsonEditor', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'json') {
+            vscode.window.showErrorMessage('Please open a JSON file first');
+            return;
+        }
+        
+        await vscode.commands.executeCommand('vscode.openWith', editor.document.uri, 'commandOutputHover.jsonEditor');
+    });
+    
     // Register command to show full output
     const showFullOutputDisposable = vscode.commands.registerCommand('commandOutputHover.showFullOutput', (args) => {
         const { output, isError } = JSON.parse(args);
         showOutputPopup(output, isError);
     });
     
-    // Register command to post JSON to URL
+    // Register command to post JSON to URL with prompt
     const postJsonDisposable = vscode.commands.registerCommand('commandOutputHover.postJsonToUrl', async () => {
         const editor = vscode.window.activeTextEditor;
         
@@ -38,7 +53,24 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
         
-        await postJsonToRemoteUrl(editor);
+        await postJsonToRemoteUrl(editor, true);
+    });
+    
+    // Register command to post JSON to default URL
+    const postJsonDefaultDisposable = vscode.commands.registerCommand('commandOutputHover.postJsonToUrlDefault', async () => {
+        const editor = vscode.window.activeTextEditor;
+        
+        if (!editor) {
+            vscode.window.showErrorMessage('No active editor found');
+            return;
+        }
+        
+        if (editor.document.languageId !== 'json') {
+            vscode.window.showErrorMessage('This command only works with JSON files');
+            return;
+        }
+        
+        await postJsonToRemoteUrl(editor, false);
     });
     
     // Register command
@@ -99,7 +131,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         commandDisposable,
         showFullOutputDisposable,
+        openJsonEditorDisposable,
         postJsonDisposable,
+        postJsonDefaultDisposable,
         hoverDisposable,
         configChangeDisposable,
         docCloseDisposable,
@@ -236,54 +270,93 @@ function getWebviewContent(output: string, truncated: boolean, isError: boolean)
 </html>`;
 }
 
-async function postJsonToRemoteUrl(editor: vscode.TextEditor): Promise<void> {
+async function postJsonToRemoteUrl(editor: vscode.TextEditor, promptForUrl: boolean): Promise<void> {
     const config = vscode.workspace.getConfiguration('commandOutputHover');
-    const url = config.get<string>('jsonPostUrl', '');
+    const configuredUrl = config.get<string>('jsonPostUrl', '');
     const method = config.get<string>('jsonPostMethod', 'POST');
     const headers = config.get<Record<string, string>>('jsonPostHeaders', { 'Content-Type': 'application/json' });
     
-    if (!url || url.trim() === '') {
-        const configure = await vscode.window.showErrorMessage(
-            'No URL configured for JSON posting',
-            'Configure Now'
-        );
-        if (configure) {
-            vscode.commands.executeCommand('workbench.action.openSettings', 'commandOutputHover.jsonPostUrl');
+    let url = configuredUrl;
+    
+    // If promptForUrl is true, show input box
+    if (promptForUrl) {
+        const inputUrl = await vscode.window.showInputBox({
+            prompt: 'Enter URL to POST JSON to (Ctrl+Click to use this URL)',
+            placeHolder: 'https://api.example.com/endpoint',
+            value: configuredUrl,
+            validateInput: (value) => {
+                if (!value || value.trim() === '') {
+                    return 'URL cannot be empty';
+                }
+                try {
+                    new URL(value);
+                    return null;
+                } catch {
+                    return 'Please enter a valid URL';
+                }
+            }
+        });
+        
+        // User cancelled
+        if (!inputUrl) {
+            return;
         }
-        return;
+        
+        url = inputUrl.trim();
+    } else {
+        // Use default URL, check if it's configured
+        if (!url || url.trim() === '') {
+            const configure = await vscode.window.showInformationMessage(
+                'No default URL configured. Click the play button with Ctrl/Cmd to enter a URL, or configure one in settings.',
+                'Configure Now',
+                'Enter URL Now'
+            );
+            
+            if (configure === 'Configure Now') {
+                vscode.commands.executeCommand('workbench.action.openSettings', 'commandOutputHover.jsonPostUrl');
+                return;
+            } else if (configure === 'Enter URL Now') {
+                // Recursively call with prompt
+                await postJsonToRemoteUrl(editor, true);
+                return;
+            } else {
+                return;
+            }
+        }
     }
     
     const jsonContent = editor.document.getText();
     
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: "Posting JSON to remote URL...",
+        title: `Posting JSON to ${url}...`,
         cancellable: false
     }, async () => {
         const result = await jsonPoster.post(jsonContent, { url, method, headers });
         
         if (result.success) {
-            showJsonResponse(result.data, result.statusCode || 200);
+            showJsonResponse(result.data, result.statusCode || 200, url);
         } else {
             vscode.window.showErrorMessage(`Failed to post JSON: ${result.error}`);
         }
     });
 }
 
-function showJsonResponse(data: any, statusCode: number): void {
+function showJsonResponse(data: any, statusCode: number, url: string): void {
     const panel = vscode.window.createWebviewPanel(
         'jsonResponse',
-        `Response (${statusCode})`,
+        `📡 Response (${statusCode})`,
         vscode.ViewColumn.Beside,
         {
-            enableScripts: false
+            enableScripts: true,
+            retainContextWhenHidden: true
         }
     );
     
-    panel.webview.html = getJsonResponseHtml(data, statusCode);
+    panel.webview.html = getJsonResponseHtml(data, statusCode, url);
 }
 
-function getJsonResponseHtml(data: any, statusCode: number): string {
+function getJsonResponseHtml(data: any, statusCode: number, url: string): string {
     const jsonString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     const isSuccess = statusCode >= 200 && statusCode < 300;
     
@@ -294,36 +367,80 @@ function getJsonResponseHtml(data: any, statusCode: number): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON Response</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             background-color: #1e1e1e;
             color: #d4d4d4;
             font-family: 'Consolas', 'Courier New', monospace;
-            padding: 20px;
+            padding: 0;
             margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        .header {
+        .toolbar {
+            background-color: #252526;
+            padding: 12px 20px;
+            border-bottom: 1px solid #3e3e3e;
             display: flex;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #3e3e3e;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
         .status {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: ${isSuccess ? '#4ec9b0' : '#f48771'};
-            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .status-icon {
-            font-size: 24px;
-            margin-right: 10px;
+            font-size: 20px;
+        }
+        .url {
+            font-size: 11px;
+            color: #858585;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .copy-btn {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        .copy-btn:hover {
+            background-color: #1177bb;
+        }
+        .copy-btn:active {
+            background-color: #0d5a8f;
+        }
+        .content {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
         }
         pre {
             background-color: #252526;
-            padding: 15px;
+            padding: 20px;
             border-radius: 5px;
-            overflow-x: auto;
+            margin: 0;
             line-height: 1.6;
+            font-size: 13px;
         }
         .json-key {
             color: #9cdcfe;
@@ -340,14 +457,51 @@ function getJsonResponseHtml(data: any, statusCode: number): string {
         .json-null {
             color: #569cd6;
         }
+        .copied-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4ec9b0;
+            color: #1e1e1e;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .copied-toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <span class="status-icon">${isSuccess ? '✅' : '❌'}</span>
-        <span class="status">HTTP ${statusCode}</span>
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div class="status">
+                <span class="status-icon">${isSuccess ? '✅' : '❌'}</span>
+                <span>HTTP ${statusCode}</span>
+            </div>
+            <div class="url" title="${url}">POST ${url}</div>
+        </div>
+        <button class="copy-btn" onclick="copyToClipboard()">📋 Copy JSON</button>
     </div>
-    <pre>${syntaxHighlightJson(jsonString)}</pre>
+    <div class="content">
+        <pre id="json-content">${syntaxHighlightJson(jsonString)}</pre>
+    </div>
+    <div id="toast" class="copied-toast">Copied to clipboard!</div>
+    
+    <script>
+        function copyToClipboard() {
+            const jsonText = ${JSON.stringify(jsonString)};
+            navigator.clipboard.writeText(jsonText).then(() => {
+                const toast = document.getElementById('toast');
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2000);
+            });
+        }
+    </script>
 </body>
 </html>`;
 }
