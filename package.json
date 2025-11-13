@@ -10,39 +10,39 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:commandOutputHover.executeCommand",
+    "onCommand:smartyPantsJsonApiTester.executeCommand",
     "onLanguage:json"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "commandOutputHover.executeCommand",
+        "command": "smartyPantsJsonApiTester.executeCommand",
         "title": "Execute Command with Selection"
       },
       {
-        "command": "commandOutputHover.showFullOutput",
+        "command": "smartyPantsJsonApiTester.showFullOutput",
         "title": "Show Full Command Output"
       },
       {
-        "command": "commandOutputHover.postJsonToUrl",
+        "command": "smartyPantsJsonApiTester.postJsonToUrl",
         "title": "Post JSON (Custom URL)",
         "icon": "$(edit)"
       },
       {
-        "command": "commandOutputHover.postJsonToUrlDefault",
+        "command": "smartyPantsJsonApiTester.postJsonToUrlDefault",
         "title": "Post JSON (Default URL)",
         "icon": "$(play)"
       },
       {
-        "command": "commandOutputHover.openJsonEditor",
+        "command": "smartyPantsJsonApiTester.openJsonEditor",
         "title": "Open JSON API Tester",
         "icon": "$(globe)"
       }
     ],
     "keybindings": [
       {
-        "command": "commandOutputHover.executeCommand",
+        "command": "smartyPantsJsonApiTester.executeCommand",
         "key": "ctrl+shift+e",
         "mac": "cmd+shift+e",
         "when": "editorTextFocus"

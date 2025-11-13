@@ -487,6 +487,7 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                 let vimCommand = '';
                 let vimCount = '';
                 let yankBuffer = '';
+                let yankIsLine = false; // Track if yank was line-wise
                 let visualStart = null;
                 let lastCommand = null; // For repeat with .
                 
@@ -704,14 +705,22 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                     // dd - delete line
                                     const pos = editor.getPosition();
                                     const model = editor.getModel();
+                                    const lines = [];
                                     for(let i = 0; i < count; i++) {
-                                        const line = model.getLineContent(pos.lineNumber);
-                                        yankBuffer = line;
-                                        editor.executeEdits('vim', [{
-                                            range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber + 1, 1),
-                                            text: ''
-                                        }]);
+                                        if (pos.lineNumber + i <= model.getLineCount()) {
+                                            lines.push(model.getLineContent(pos.lineNumber + i));
+                                        }
                                     }
+                                    yankBuffer = lines.join('\\n');
+                                    yankIsLine = true;
+                                    
+                                    // Delete the lines
+                                    const endLine = Math.min(pos.lineNumber + count, model.getLineCount() + 1);
+                                    editor.executeEdits('vim', [{
+                                        range: new monaco.Range(pos.lineNumber, 1, endLine, 1),
+                                        text: ''
+                                    }]);
+                                    
                                     vimCommand = '';
                                     vimCount = '';
                                     updateStatus();
@@ -725,18 +734,55 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                     // yy - yank line
                                     const pos = editor.getPosition();
                                     const model = editor.getModel();
-                                    yankBuffer = model.getLineContent(pos.lineNumber);
+                                    const lines = [];
+                                    for(let i = 0; i < count; i++) {
+                                        if (pos.lineNumber + i <= model.getLineCount()) {
+                                            lines.push(model.getLineContent(pos.lineNumber + i));
+                                        }
+                                    }
+                                    yankBuffer = lines.join('\\n');
+                                    yankIsLine = true;
                                     vimCommand = '';
                                     vimCount = '';
                                     updateStatus();
+                                    
+                                    // Show feedback
+                                    statusNode.textContent = count + ' line' + (count > 1 ? 's' : '') + ' yanked';
+                                    setTimeout(() => updateStatus(), 1000);
                                 } else {
                                     vimCommand = 'y';
                                     updateStatus();
                                 }
                                 break;
                             case 'p':
+                                // Paste after cursor
+                                console.log('p pressed, yankBuffer:', yankBuffer, 'yankIsLine:', yankIsLine);
                                 if (yankBuffer) {
-                                    editor.trigger('vim', 'type', { text: yankBuffer });
+                                    const pos = editor.getPosition();
+                                    const model = editor.getModel();
+                                    
+                                    if (yankIsLine) {
+                                        // Line-wise paste: paste on new line below
+                                        const lineContent = model.getLineContent(pos.lineNumber);
+                                        const insertPos = new monaco.Position(pos.lineNumber, lineContent.length + 1);
+                                        console.log('Pasting line-wise at', insertPos, 'text:', yankBuffer);
+                                        editor.executeEdits('vim', [{
+                                            range: new monaco.Range(insertPos.lineNumber, insertPos.column, insertPos.lineNumber, insertPos.column),
+                                            text: '\\n' + yankBuffer
+                                        }]);
+                                        // Move cursor to start of pasted content
+                                        editor.setPosition({ lineNumber: pos.lineNumber + 1, column: 1 });
+                                    } else {
+                                        // Character-wise paste: paste after cursor
+                                        const currentPos = editor.getPosition();
+                                        console.log('Pasting char-wise at', currentPos, 'text:', yankBuffer);
+                                        editor.executeEdits('vim', [{
+                                            range: new monaco.Range(currentPos.lineNumber, currentPos.column + 1, currentPos.lineNumber, currentPos.column + 1),
+                                            text: yankBuffer
+                                        }]);
+                                    }
+                                } else {
+                                    console.log('No yankBuffer to paste');
                                 }
                                 vimCount = '';
                                 updateStatus();
@@ -824,13 +870,33 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                 break;
                             case 'P':
                                 // Paste before cursor
+                                console.log('P pressed, yankBuffer:', yankBuffer, 'yankIsLine:', yankIsLine);
                                 if (yankBuffer) {
-                                    const pPos = editor.getPosition();
-                                    editor.executeEdits('vim', [{
-                                        range: new monaco.Range(pPos.lineNumber, pPos.column, pPos.lineNumber, pPos.column),
-                                        text: yankBuffer
-                                    }]);
+                                    const pos = editor.getPosition();
+                                    const model = editor.getModel();
+                                    
+                                    if (yankIsLine) {
+                                        // Line-wise paste: paste on new line above
+                                        console.log('Pasting line-wise above at', pos, 'text:', yankBuffer);
+                                        editor.executeEdits('vim', [{
+                                            range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber, 1),
+                                            text: yankBuffer + '\\n'
+                                        }]);
+                                        // Move cursor to start of pasted content
+                                        editor.setPosition({ lineNumber: pos.lineNumber, column: 1 });
+                                    } else {
+                                        // Character-wise paste: paste before cursor
+                                        console.log('Pasting char-wise before at', pos, 'text:', yankBuffer);
+                                        editor.executeEdits('vim', [{
+                                            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+                                            text: yankBuffer
+                                        }]);
+                                    }
+                                } else {
+                                    console.log('No yankBuffer to paste');
                                 }
+                                vimCount = '';
+                                updateStatus();
                                 break;
                             case '~':
                                 // Toggle case
@@ -1055,6 +1121,7 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                                 const selection = editor.getSelection();
                                 const selectedText = editor.getModel().getValueInRange(selection);
                                 yankBuffer = selectedText;
+                                yankIsLine = (vimMode === 'visualLine');
                                 editor.executeEdits('vim', [{
                                     range: selection,
                                     text: ''
@@ -1064,11 +1131,18 @@ export class JsonEditorProvider implements vscode.CustomTextEditorProvider {
                             case 'y':
                                 const sel = editor.getSelection();
                                 yankBuffer = editor.getModel().getValueInRange(sel);
+                                yankIsLine = (vimMode === 'visualLine');
                                 setMode('normal');
+                                
+                                // Show feedback
+                                const lineCount = sel.endLineNumber - sel.startLineNumber + 1;
+                                statusNode.textContent = lineCount + ' line' + (lineCount > 1 ? 's' : '') + ' yanked';
+                                setTimeout(() => updateStatus(), 1000);
                                 break;
                             case 'c':
                                 const changeSel = editor.getSelection();
                                 yankBuffer = editor.getModel().getValueInRange(changeSel);
+                                yankIsLine = (vimMode === 'visualLine');
                                 editor.executeEdits('vim', [{
                                     range: changeSel,
                                     text: ''
