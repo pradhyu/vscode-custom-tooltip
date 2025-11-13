@@ -98,6 +98,9 @@ async function executeCommandWithProgress(
         cancellable: false
     }, async () => {
         try {
+            // Build the actual command that will be executed
+            const actualCommand = config.commandTemplate.replace(/\{\{input\}\}/g, selectedText);
+            
             // Execute command
             const result = await commandExecutor.execute(
                 selectedText,
@@ -107,7 +110,7 @@ async function executeCommandWithProgress(
             );
             
             // Handle result and store for hover
-            handleExecutionResult(editor, selection, result);
+            handleExecutionResult(editor, selection, result, actualCommand, selectedText);
             
         } catch (error) {
             vscode.window.showErrorMessage(`Command execution failed: ${error}`);
@@ -118,20 +121,22 @@ async function executeCommandWithProgress(
 function handleExecutionResult(
     editor: vscode.TextEditor,
     selection: vscode.Selection,
-    result: any
+    result: any,
+    command: string,
+    input: string
 ): void {
     const range = new vscode.Range(selection.start, selection.end);
     
     if (result.success) {
         // Store successful output
-        hoverManager.storeOutput(editor.document, range, result.output);
+        hoverManager.storeOutput(editor.document, range, result.output, command, input);
         
         // Show output in a popup immediately
         showOutputPopup(result.output, false);
     } else {
         // Store error output for debugging
         const errorOutput = result.error || 'Unknown error';
-        hoverManager.storeOutput(editor.document, range, `Error: ${errorOutput}`);
+        hoverManager.storeOutput(editor.document, range, `Error: ${errorOutput}`, command, input);
         
         // Show error in popup
         showOutputPopup(errorOutput, true);
