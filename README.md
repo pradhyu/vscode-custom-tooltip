@@ -24,7 +24,11 @@ Execute shell commands with selected text and view the output in hover tooltips.
 ### Viewing Output
 
 - **Immediate popup**: After command execution, output appears in a side panel
-- **Rich hover tooltip**: Hover over the text to see a preview with ✅/❌ icon
+- **Rich hover tooltip**: Hover over the text to see:
+  - ✅/❌ icon indicating success or error
+  - The input text that was used
+  - The actual command that was executed
+  - Preview of the output
 - **Full output link**: Click the link in the tooltip to open the complete output in a popup
 
 ## Configuration
