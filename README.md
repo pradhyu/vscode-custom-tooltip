@@ -10,6 +10,8 @@ Execute shell commands with selected text and view the output in hover tooltips.
 - Support for both Bash and PowerShell
 - Visual progress feedback during command execution
 - Configurable timeout for command execution
+- **JSON File Support**: Post JSON files to remote URLs with a play button in the editor
+- View pretty-formatted, syntax-highlighted JSON responses in a side panel
 
 ## Usage
 
@@ -60,6 +62,41 @@ Command execution timeout in milliseconds.
 
 **Default:** `30000` (30 seconds)
 
+### `commandOutputHover.jsonPostUrl`
+
+Remote URL to POST JSON files to. When configured, a play button (▶️) appears in the editor title bar for JSON files.
+
+**Default:** `""` (empty, feature disabled)
+
+**Example:** `https://httpbin.org/post` (free testing endpoint)
+
+### `commandOutputHover.jsonPostMethod`
+
+HTTP method to use when posting JSON.
+
+**Options:** `POST`, `PUT`
+
+**Default:** `POST`
+
+### `commandOutputHover.jsonPostHeaders`
+
+Custom headers to include in the JSON POST request.
+
+**Default:** 
+```json
+{
+  "Content-Type": "application/json"
+}
+```
+
+**Example with authentication:**
+```json
+{
+  "Content-Type": "application/json",
+  "Authorization": "Bearer your-token-here"
+}
+```
+
 ## Example Use Cases
 
 ### Word Count
@@ -102,6 +139,48 @@ Command execution timeout in milliseconds.
 }
 ```
 
+## JSON File Support
+
+When you open a JSON file, a play button (▶️) appears in the editor title bar.
+
+### Usage
+
+1. Configure the remote URL in settings: `commandOutputHover.jsonPostUrl`
+2. Open any JSON file
+3. Click the play button (▶️) in the editor title bar
+4. The JSON will be posted to the configured URL
+5. The response appears in a side panel with:
+   - HTTP status code with ✅/❌ indicator
+   - Pretty-formatted JSON
+   - Syntax highlighting (keys, strings, numbers, booleans)
+
+### Example Configuration for Testing
+
+Use a free testing endpoint like httpbin.org:
+
+```json
+{
+  "commandOutputHover.jsonPostUrl": "https://httpbin.org/post",
+  "commandOutputHover.jsonPostMethod": "POST",
+  "commandOutputHover.jsonPostHeaders": {
+    "Content-Type": "application/json"
+  }
+}
+```
+
+### Example Configuration for Production API
+
+```json
+{
+  "commandOutputHover.jsonPostUrl": "https://api.yourservice.com/endpoint",
+  "commandOutputHover.jsonPostMethod": "POST",
+  "commandOutputHover.jsonPostHeaders": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer your-api-token"
+  }
+}
+```
+
 ## Keyboard Shortcuts
 
 - `Ctrl+Shift+E` (Windows/Linux) or `Cmd+Shift+E` (Mac) - Execute command with selection
@@ -118,6 +197,7 @@ You can customize the keyboard shortcut in VS Code's Keyboard Shortcuts settings
 - Command output is limited to prevent memory issues
 - Hover data is cleared after 1 hour or when the document is closed
 - Document edits may affect hover positioning
+- The play button appears for all JSON files, even when no URL is configured (click it to configure)
 
 ## Security Note
 
@@ -128,7 +208,9 @@ Be cautious when executing commands with untrusted input. The extension sanitize
 ### 0.0.1
 
 Initial release with core functionality:
-- Command execution with selected text
-- Hover tooltip display
+- Command execution with selected text or word under cursor
+- Hover tooltip display with command details
 - Configurable command templates
 - Support for Bash and PowerShell
+- JSON file posting to remote URLs
+- Pretty-formatted JSON response viewer

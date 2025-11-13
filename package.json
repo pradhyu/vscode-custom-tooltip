@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:commandOutputHover.executeCommand"
+    "onCommand:commandOutputHover.executeCommand",
+    "onLanguage:json"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -22,6 +23,11 @@
       {
         "command": "commandOutputHover.showFullOutput",
         "title": "Show Full Command Output"
+      },
+      {
+        "command": "commandOutputHover.postJsonToUrl",
+        "title": "Post JSON to Remote URL",
+        "icon": "$(play)"
       }
     ],
     "keybindings": [
@@ -32,6 +38,15 @@
         "when": "editorTextFocus"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "commandOutputHover.postJsonToUrl",
+          "when": "resourceLangId == json",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Command Output Hover",
       "properties": {
@@ -53,6 +68,27 @@
           "type": "number",
           "default": 30000,
           "description": "Command execution timeout in milliseconds."
+        },
+        "commandOutputHover.jsonPostUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Remote URL to POST JSON files to. Leave empty to disable."
+        },
+        "commandOutputHover.jsonPostMethod": {
+          "type": "string",
+          "enum": [
+            "POST",
+            "PUT"
+          ],
+          "default": "POST",
+          "description": "HTTP method to use when posting JSON."
+        },
+        "commandOutputHover.jsonPostHeaders": {
+          "type": "object",
+          "default": {
+            "Content-Type": "application/json"
+          },
+          "description": "Custom headers to include in the JSON POST request."
         }
       }
     }

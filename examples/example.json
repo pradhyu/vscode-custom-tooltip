@@ -1,0 +1,9 @@
+{
+  "message": "Hello from VS Code!",
+  "timestamp": "2024-11-12T10:00:00Z",
+  "data": {
+    "user": "developer",
+    "action": "test",
+    "values": [1, 2, 3, 4, 5]
+  }
+}
