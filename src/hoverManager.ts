@@ -69,6 +69,11 @@ export class HoverManager implements vscode.HoverProvider {
                 const icon = isError ? '❌' : '✅';
                 markdown.appendMarkdown(`${icon} **Command Output**\n\n`);
                 
+                // Show the executed command
+                markdown.appendMarkdown(`**Input:** \`${stored.input}\`\n\n`);
+                markdown.appendMarkdown(`**Command:** \`${stored.command}\`\n\n`);
+                markdown.appendMarkdown('---\n\n');
+                
                 // Show preview (first 200 chars)
                 const previewLength = 200;
                 let preview = stored.output;
